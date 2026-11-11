@@ -103,6 +103,10 @@ cat > "$APP/Contents/Info.plist" <<PLIST
     <key>SUPublicEDKey</key>                <string>$PUBLIC_KEY</string>
     <!-- Sparkle only ever fetches the feed. Never send a system profile. -->
     <key>SUEnableSystemProfiling</key>      <false/>
+    <!-- On by default, so Sparkle doesn't ask its own "check automatically?"
+         question on top of the welcome window's switch, which is the one
+         place the user decides (and can change in Settings). -->
+    <key>SUEnableAutomaticChecks</key>      <true/>
 </dict>
 </plist>
 PLIST

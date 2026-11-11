@@ -23,10 +23,8 @@ final class SettingsWindowController: NSWindowController {
         window.setContentSize(NSSize(width: 780, height: 560))
         window.contentMinSize = NSSize(width: 640, height: 420)
         window.isReleasedWhenClosed = false
+        // Remembers its size; the position follows the pointer each time it opens.
         window.setFrameAutosaveName("vellforge.settings")
-        if window.frameAutosaveName.isEmpty || !window.setFrameUsingName("vellforge.settings") {
-            window.center()
-        }
         super.init(window: window)
     }
 
@@ -34,9 +32,10 @@ final class SettingsWindowController: NSWindowController {
 
     func show(pane: String?) {
         if let pane { navigation.selection = pane }
+        guard let window else { return }
+        if !window.isVisible { WindowPlacement.centerOnActiveScreen(window) }
         showWindow(nil)
-        window?.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
+        WindowPlacement.bringToFront(window)
     }
 }
 

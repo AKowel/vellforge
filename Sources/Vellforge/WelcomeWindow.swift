@@ -29,10 +29,10 @@ final class WelcomeWindowController: NSWindowController, NSWindowDelegate {
     required init?(coder: NSCoder) { fatalError("not used") }
 
     func show() {
-        window?.center()
+        guard let window else { return }
+        if !window.isVisible { WindowPlacement.centerOnActiveScreen(window) }
         showWindow(nil)
-        window?.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
+        WindowPlacement.bringToFront(window)
     }
 
     func windowWillClose(_ notification: Notification) {
@@ -189,6 +189,7 @@ struct WelcomeView: View {
                     }))
             }
             if !model.found.isEmpty { oldApps }
+            WhereItLives()
         } footer: {
             if model.app.updater.isAvailable {
                 Toggle("Check for updates automatically", isOn: $model.autoUpdate)
@@ -264,6 +265,7 @@ struct WelcomeView: View {
                 PermissionRowView(row.use)
                 Divider()
             }
+            WhereItLives()
         } footer: {
             Spacer()
             let ready = model.permissionRows.allSatisfy {
@@ -278,6 +280,19 @@ struct WelcomeView: View {
 extension FoundLegacyApp {
     /// Whether importing it would actually do anything.
     var hasWork: Bool { hasSettings || isRunning || canMoveToBin }
+}
+
+/// A menu bar app is easy to lose: on a full menu bar macOS hides the newest
+/// icons behind the camera notch, with no sign that it has.
+private struct WhereItLives: View {
+    var body: some View {
+        Label("Vellforge lives in your menu bar. If the bar is full, macOS can hide new icons behind the camera notch: open Vellforge again from Finder or Spotlight to get Settings, or switch on Bar to make room.",
+              systemImage: "menubar.arrow.up.rectangle")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(.top, 4)
+    }
 }
 
 private struct AddOnChoice: View {

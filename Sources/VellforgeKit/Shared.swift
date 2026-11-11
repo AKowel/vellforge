@@ -185,3 +185,39 @@ public enum AppActions {
     /// Open Settings, at an add-on's pane when given its id.
     public static var openSettings: (_ addOnID: String?) -> Void = { _ in }
 }
+
+/// Puts Vellforge's windows where the user is looking.
+///
+/// `NSWindow.center()` uses the "main" screen, which for a menu bar app with
+/// no window of its own can be any display, so on a multi-monitor setup the
+/// welcome window opened on a screen nobody was looking at. The pointer is a
+/// far better guess. And macOS 14 may refuse to activate an app the user
+/// didn't just click, so the window is ordered front regardless.
+@MainActor
+public enum WindowPlacement {
+
+    public static var activeScreen: NSScreen? {
+        let mouse = NSEvent.mouseLocation
+        return NSScreen.screens.first { NSMouseInRect(mouse, $0.frame, false) }
+            ?? NSScreen.main ?? NSScreen.screens.first
+    }
+
+    /// Centre on the pointer's display, a little above the middle like
+    /// `center()` does.
+    public static func centerOnActiveScreen(_ window: NSWindow) {
+        guard let visible = activeScreen?.visibleFrame else { window.center(); return }
+        let size = window.frame.size
+        let origin = NSPoint(x: visible.midX - size.width / 2,
+                             y: min(visible.maxY - size.height,
+                                    visible.midY - size.height / 2 + visible.height / 10))
+        window.setFrameOrigin(NSPoint(x: origin.x, y: max(visible.minY, origin.y)))
+    }
+
+    /// Show it on the current Space, including over a full-screen app.
+    public static func bringToFront(_ window: NSWindow) {
+        window.collectionBehavior.insert([.moveToActiveSpace, .fullScreenAuxiliary])
+        NSApp.activate()
+        window.makeKeyAndOrderFront(nil)
+        window.orderFrontRegardless()
+    }
+}
