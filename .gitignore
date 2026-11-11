@@ -1,0 +1,10 @@
+.build/
+build/
+.DS_Store
+.swiftpm/
+Resources/Vellforge.iconset/
+
+# Never commit a private signing key. The Sparkle key lives in the keychain;
+# only its public half (Resources/sparkle-public-key.txt) belongs in the repo.
+secrets/
+*.private-key
