@@ -53,7 +53,9 @@ enum ScrollDiagnostics {
         let c = ScrollTap.shared.eventCounts
         line("  scroll events seen:    \(c.seen)")
         line("  events actually flipped: \(c.flipped)")
-        line("  last event was:        \(c.lastContinuous ? "continuous (trackpad)" : "discrete (mouse wheel)")")
+        let h0 = ScrollTap.shared.health
+        let judged = ScrollTap.shared.lastSource.map { $0 == .trackpad ? "trackpad" : "mouse" } ?? "none yet"
+        line("  last event was:        \(c.lastContinuous ? "continuous" : "discrete"), phase \(h0.phase), momentum \(h0.momentum) -> \(judged)")
         let d = ScrollTap.shared.lastDeltas
         line("  last event line delta:  \(d.lineIn) -> \(d.lineOut)")
         line("  last event point delta: \(d.pointIn) -> \(d.pointOut)")
@@ -66,8 +68,8 @@ enum ScrollDiagnostics {
         line("  last scroll phase:      \(h.phase)")
         line("  last momentum phase:    \(h.momentum)")
         let pd = ScrollTap.shared.perDevice
-        line("  from trackpad (continuous): \(pd.trackpad)")
-        line("  from mouse (discrete):      \(pd.mouse)")
+        line("  judged trackpad: \(pd.trackpad)")
+        line("  judged mouse:    \(pd.mouse)")
         if pd.trackpad == 0 && pd.mouse > 0 {
             line("  -> NO trackpad events have reached the tap at all")
         }

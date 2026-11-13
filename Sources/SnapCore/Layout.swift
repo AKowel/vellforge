@@ -18,6 +18,11 @@ public struct Layout: Sendable, Equatable, Identifiable {
 }
 
 public extension Layout {
+    /// The whole screen, as the first tile, so the chooser covers "just make
+    /// it big" as well as the splits.
+    static let fullScreen = Layout(id: "fullScreen", name: "Full Screen",
+                                   cells: [.full])
+
     static let halves = Layout(id: "halves", name: "Halves",
                                cells: [.leftHalf, .rightHalf])
 
@@ -44,6 +49,6 @@ public extension Layout {
         ])
 
     static let presets: [Layout] = [
-        .halves, .thirds, .wideLeft, .wideRight, .quarters, .mainAndStack,
+        .fullScreen, .halves, .thirds, .wideLeft, .wideRight, .quarters, .mainAndStack,
     ]
 }

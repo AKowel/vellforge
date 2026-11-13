@@ -112,11 +112,19 @@ struct ScrollSettingsView: View {
 
     @State private var settings = SettingsStore.shared.settings
     @State private var systemNatural = SystemScroll.isNaturalOn
+    @State private var lastSource = ScrollTap.shared.lastSource
 
     var body: some View {
         Section {
             LabeledContent("Trackpad scrolls", value: direction(.trackpad).title)
             LabeledContent("Mouse wheel scrolls", value: direction(.mouse).title)
+            // So "is it treating my mouse as a mouse?" has an answer.
+            LabeledContent("Last scroll came from") {
+                Text(lastSource.map { $0 == .trackpad ? "Trackpad" : "Mouse" } ?? "Nothing yet")
+                    .onReceive(Timer.publish(every: 0.5, on: .main, in: .common).autoconnect()) { _ in
+                        lastSource = ScrollTap.shared.lastSource
+                    }
+            }
             if !EffectiveDirection.isConventional(systemNatural: systemNatural, settings: settings) {
                 Button("Use natural trackpad, classic mouse") {
                     ScrollAddOn.applyConventional()
@@ -148,7 +156,7 @@ struct ScrollSettingsView: View {
         }
 
         Section {
-            Text("A Magic Mouse scrolls by gesture, so macOS reports it like a trackpad and Scroll treats it as one. On some Macs the built-in trackpad's events never reach Scroll, so inverting the trackpad may do nothing; inverting the mouse always works.")
+            Text("Scroll tells devices apart by how they report a scroll: a trackpad sends a gesture that starts and ends, a wheel doesn't. Mice with a smooth or free-spinning wheel, like Logitech's MX range, count as mice. A Magic Mouse scrolls by gesture, so it counts as a trackpad.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
         }

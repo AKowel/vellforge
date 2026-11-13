@@ -1,5 +1,6 @@
 import AppKit
 import Bar
+import Buttons
 import Scroll
 import Snap
 import VellforgeKit
@@ -8,7 +9,7 @@ import VellforgeKit
 final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// Every add-on Vellforge ships. A new one is one more entry here.
-    let registry = AddOnRegistry(addOns: [SnapAddOn(), ScrollAddOn(), BarAddOn()])
+    let registry = AddOnRegistry(addOns: [SnapAddOn(), ScrollAddOn(), BarAddOn(), ButtonsAddOn()])
     let updater = Updater()
 
     private var statusMenu: StatusMenuController?
@@ -104,6 +105,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             "path:   \(Bundle.main.bundlePath)",
             "macOS:  \(ProcessInfo.processInfo.operatingSystemVersionString)",
             "updates: \(updater.isAvailable ? "on" : "off in this build")",
+            "menu bar icon: \(statusMenu?.iconPlacement ?? "-")",
             "",
             "PERMISSIONS",
         ]

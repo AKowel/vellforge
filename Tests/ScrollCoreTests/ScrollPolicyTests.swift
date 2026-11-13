@@ -5,10 +5,35 @@ import Testing
 @Suite("Scroll source classification")
 struct ScrollSourceTests {
 
-    @Test("continuous events are gesture surfaces, discrete ones are wheels")
-    func classification() {
-        #expect(ScrollSource.classify(isContinuous: true) == .trackpad)
+    // Phase values as CoreGraphics reports them: 1 began, 2 changed, 4 ended,
+    // 128 may-begin; momentum 1 begin, 2 continue, 3 end.
+
+    @Test("a notched wheel is a mouse, whatever else the event says")
+    func discreteIsMouse() {
         #expect(ScrollSource.classify(isContinuous: false) == .mouse)
+        #expect(ScrollSource.classify(isContinuous: false, scrollPhase: 2) == .mouse)
+    }
+
+    @Test("a gesture with a phase is a trackpad")
+    func gestureIsTrackpad() {
+        for phase: Int64 in [1, 2, 4, 128] {
+            #expect(ScrollSource.classify(isContinuous: true, scrollPhase: phase) == .trackpad)
+        }
+    }
+
+    @Test("momentum after the fingers lift still counts as the trackpad")
+    func momentumIsTrackpad() {
+        for momentum: Int64 in [1, 2, 3] {
+            #expect(ScrollSource.classify(isContinuous: true, scrollPhase: 0,
+                                          momentumPhase: momentum) == .trackpad)
+        }
+    }
+
+    @Test("a smooth wheel (continuous, no phase) is a mouse, not a trackpad")
+    func smoothWheelIsMouse() {
+        // Logitech MX Master: continuous deltas, never a gesture phase. This
+        // was taken for a trackpad, so "invert mouse" did nothing to it.
+        #expect(ScrollSource.classify(isContinuous: true) == .mouse)
     }
 }
 
@@ -55,10 +80,13 @@ struct ScrollPolicyTests {
         #expect(mouse.invertHorizontal)
         #expect(!mouse.isIdentity)
 
-        let trackpad = ScrollPolicy.decide(isContinuous: true, settings: s)
+        let trackpad = ScrollPolicy.decide(isContinuous: true, scrollPhase: 2, settings: s)
         #expect(!trackpad.invertVertical)
         #expect(!trackpad.invertHorizontal)
         #expect(trackpad.isIdentity, "an untouched device must produce no change at all")
+
+        let smoothWheel = ScrollPolicy.decide(isContinuous: true, settings: s)
+        #expect(smoothWheel.invertVertical, "a smooth wheel follows the mouse setting")
     }
 
     @Test("turning everything off is recognised as doing nothing")

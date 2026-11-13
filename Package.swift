@@ -6,7 +6,7 @@ import PackageDescription
 //   *Core          pure logic, no AppKit, unit tested
 //   VellforgeKit   what the add-ons share: the AddOn protocol, permissions,
 //                  the registry that starts and stops add-ons, legacy import
-//   Snap/Scroll/Bar  one module per add-on
+//   Snap/Scroll/Bar/Buttons  one module per add-on
 //   Vellforge      the app itself: menu bar icon, Settings, welcome, updates
 let package = Package(
     name: "Vellforge",
@@ -18,17 +18,19 @@ let package = Package(
         .target(name: "SnapCore"),
         .target(name: "ScrollCore"),
         .target(name: "BarCore"),
+        .target(name: "ButtonsCore"),
 
         .target(name: "VellforgeKit"),
 
         .target(name: "Snap", dependencies: ["SnapCore", "VellforgeKit"]),
         .target(name: "Scroll", dependencies: ["ScrollCore", "VellforgeKit"]),
         .target(name: "Bar", dependencies: ["BarCore", "VellforgeKit"]),
+        .target(name: "Buttons", dependencies: ["ButtonsCore", "VellforgeKit"]),
 
         .executableTarget(
             name: "Vellforge",
             dependencies: [
-                "VellforgeKit", "Snap", "Scroll", "Bar",
+                "VellforgeKit", "Snap", "Scroll", "Bar", "Buttons",
                 .product(name: "Sparkle", package: "Sparkle"),
             ]
         ),
@@ -36,6 +38,7 @@ let package = Package(
         .testTarget(name: "SnapCoreTests", dependencies: ["SnapCore"]),
         .testTarget(name: "ScrollCoreTests", dependencies: ["ScrollCore"]),
         .testTarget(name: "BarCoreTests", dependencies: ["BarCore"]),
+        .testTarget(name: "ButtonsCoreTests", dependencies: ["ButtonsCore"]),
         .testTarget(name: "VellforgeKitTests", dependencies: ["VellforgeKit"]),
     ]
 )

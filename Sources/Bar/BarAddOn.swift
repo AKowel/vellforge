@@ -44,8 +44,10 @@ public final class BarAddOn: AddOn {
 
     public func start() {
         guard separator == nil else { return }
+        Self.placeOnFirstRun()
         let controller = SeparatorController()
         controller.buildMenu = { [weak self] in self?.chevronMenu() ?? NSMenu() }
+        controller.onCollapseChange = { [weak self] collapsed in self?.collapseChanged(collapsed) }
         separator = controller
         startCapturing()
 
@@ -166,7 +168,17 @@ public final class BarAddOn: AddOn {
     private func toggleCollapse() {
         guard let separator else { return }
         separator.setCollapsed(!separator.isCollapsed)
-        if !separator.isCollapsed {
+    }
+
+    private func collapseChanged(_ collapsed: Bool) {
+        if collapsed {
+            // Collapsing with nothing left of the divider looks exactly like a
+            // broken app: the chevron flips and nothing happens. Say why.
+            if separator?.wouldHideNothing == true, AccessibilityPermission.isTrusted {
+                Feedback.show("Nothing is left of Bar's ☰ divider, so there's nothing to hide. "
+                              + "Hold ⌘ and drag icons to the left of it.", duration: 5)
+            }
+        } else {
             Task { @MainActor in
                 try? await Task.sleep(for: .milliseconds(250))
                 await icons.refresh(items: MenuBarScanner.scan(), force: true)
@@ -174,21 +186,40 @@ public final class BarAddOn: AddOn {
         }
     }
 
+    /// Where macOS remembers a menu bar item's place, by the item's autosave
+    /// name. Lower numbers sit further right, next to Control Center.
+    static func positionKey(_ autosaveName: String) -> String {
+        "NSStatusItem Preferred Position \(autosaveName)"
+    }
+
+    /// macOS puts a new menu bar item at the far left. On a full menu bar
+    /// that is behind the camera notch, out of sight, and with the divider
+    /// at the far left collapsing hides nothing at all. So the first time,
+    /// put the chevron and divider at the right end, just left of the
+    /// Vellforge icon: collapsing then hides everything else, and the user
+    /// ⌘-drags back out whatever should stay. Never touches a position the
+    /// user (or the import from Vellbar) has already set.
+    static func placeOnFirstRun() {
+        let defaults = UserDefaults.standard
+        let toggle = positionKey("vellbar.toggle"), divider = positionKey("vellbar.separator")
+        guard defaults.object(forKey: toggle) == nil, defaults.object(forKey: divider) == nil
+        else { return }
+        defaults.set(1.0, forKey: toggle)
+        defaults.set(2.0, forKey: divider)
+    }
+
     static func showHelp() {
         let alert = NSAlert()
-        alert.messageText = "One drag, and you're set up"
+        alert.messageText = "Click the chevron to hide icons"
         alert.informativeText = """
-            macOS drops new menu bar icons at the far left and gives apps no way \
-            to move themselves, so Bar needs one drag from you. Every app that \
-            does this works the same way.
+            Bar starts with its chevron and ☰ divider at the right end of the \
+            menu bar, so clicking the chevron hides every icon to the left of ☰.
 
-            1.  Find Bar's divider (the small ☰ icon).
-            2.  Hold ⌘ and drag it to the RIGHT, past every icon you want hidden.
-            3.  Click the chevron to collapse.
+            To keep an icon on show, hold ⌘ and drag it to the right of ☰. \
+            To hide less, ⌘-drag ☰ itself further left.
 
-            Everything to the left of the divider hides. Everything to the right \
-            stays on show. Right-click the chevron any time for the full list; \
-            you can open any item from there, even while it's hidden.
+            Right-click the chevron any time for the full list; you can open \
+            any item from there, even while it's hidden.
             """
         alert.addButton(withTitle: "Got it")
         NSApp.activate(ignoringOtherApps: true)
@@ -205,6 +236,7 @@ public final class BarAddOn: AddOn {
         var lines = BarDiagnostics.report()
         lines += "\n  divider collapsed: \(separator?.isCollapsed.description ?? "not running")"
         lines += "\n  would hide nothing: \(separator?.wouldHideNothing.description ?? "-")"
+        lines += "\n  divider at x:       \(separator?.separatorX.map { String(Int($0)) } ?? "-")"
         return lines
     }
 }
@@ -213,7 +245,7 @@ struct BarSettingsView: View {
     var body: some View {
         Section {
             HStack {
-                Text("Hold ⌘ and drag Bar's divider to the right, past every icon you want hidden. Click the chevron to collapse; right-click it for the list.")
+                Text("Click the chevron to hide every icon left of Bar's ☰ divider. Hold ⌘ and drag an icon to the right of ☰ to keep it on show. Right-click the chevron for the list.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
                 Spacer()

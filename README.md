@@ -3,7 +3,7 @@
 Small tools for macOS, in one menu bar app. Free, no account, no telemetry.
 
 Vellforge is one app with add-ons you switch on as you need them. It replaces
-the separate Vellsnap, Vellscroll and Vellbar apps.
+the separate Vellsnap, Vellscroll and Vellbar apps, and adds Buttons.
 
 Part of [Vellund](https://vellund.com). Website: [vellforge.com](https://vellforge.com).
 
@@ -11,7 +11,7 @@ Part of [Vellund](https://vellund.com). Website: [vellforge.com](https://vellfor
 
 **Snap: window snapping and layouts.** Drag a window to a screen edge and a
 preview shows where it will land; drag toward the top for a layout chooser.
-Every region has a rebindable shortcut (defaults match Rectangle and Magnet:
+The chooser starts with a full-screen tile. Every region has a rebindable shortcut (defaults match Rectangle and Magnet:
 `⌃⌥` plus arrows for halves, `U I J K` for quarters, `D F G` for thirds,
 `⌃⌥⌘` plus arrows to move between displays). A 6×4 grid in the menu covers
 regions with no name, and saved layouts capture every window's position to
@@ -19,11 +19,18 @@ restore later.
 
 **Scroll: scroll direction per device.** macOS has one natural scrolling switch
 for every device. Scroll flips the mouse wheel, the trackpad, or both, and the
-menu says what each device actually does.
+menu says what each device actually does. It tells them apart by the gesture
+phase a trackpad reports, so smooth-wheel mice such as Logitech's MX range
+count as mice.
 
-**Bar: hide menu bar clutter.** Adds a divider and a chevron. ⌘-drag the
-divider to where hiding should start; click the chevron to collapse everything
-to its left. The list can click any item for you, even while it's hidden.
+**Bar: hide menu bar clutter.** Adds a divider and a chevron at the right end
+of the menu bar; click the chevron to hide everything to the left of the
+divider, and ⌘-drag icons to its right to keep them on show. The list can
+click any item for you, even while it's hidden.
+
+**Buttons: middle click and side buttons.** A three-finger click on the
+trackpad is a middle click (a three-finger tap too, if you want), and a mouse's
+side buttons go back and forward in every app (as ⌘[ and ⌘]).
 
 ## Permissions
 
@@ -35,6 +42,7 @@ Vellforge only asks when you switch on an add-on that needs something.
 | Snap | Required: moving other apps' windows | — |
 | Scroll | Required: changing scroll events | — |
 | Bar | Optional: listing and clicking menu bar items | Optional: real icons in the list |
+| Buttons | Required: changing clicks and button presses | — |
 
 Bar hides icons with no permissions at all. It photographs one strip of the
 menu bar for icons, never records continuously, never saves an image and never
@@ -91,9 +99,9 @@ with the same certificate each time, or people lose their permission grants.
 
 | Module | What |
 | --- | --- |
-| `SnapCore`, `ScrollCore`, `BarCore` | Pure logic with no AppKit, unit tested |
+| `SnapCore`, `ScrollCore`, `BarCore`, `ButtonsCore` | Pure logic with no AppKit, unit tested |
 | `VellforgeKit` | The `AddOn` protocol, permissions, the registry that starts and stops add-ons, importing from the old apps, shared menu and UI pieces |
-| `Snap`, `Scroll`, `Bar` | One module per add-on |
+| `Snap`, `Scroll`, `Bar`, `Buttons` | One module per add-on |
 | `Vellforge` | The app: menu bar icon, Settings, welcome window, Sparkle |
 
 An add-on is one type conforming to `AddOn`: its name, the permissions it uses
@@ -116,8 +124,13 @@ Things worth knowing if you read the code:
 - **Bar hides by making its own status item 10,000 points wide.** Items lay out
   right to left, so everything to its left is pushed off screen. No API needed,
   nothing to break on a macOS update.
-- **The Vellforge icon is created before Bar's.** Status items are placed right
-  to left in creation order, so it can never end up hidden behind the divider.
+- **New menu bar icons go to the far left**, which on a full menu bar is behind
+  the camera notch. So on first run Vellforge seeds the positions AppKit reads
+  (`NSStatusItem Preferred Position <name>`; lower is further right): the
+  Vellforge icon at 0, Bar's chevron at 1 and divider at 2. Collapsing then
+  hides everything else straight away, and the Vellforge icon is never hidden.
+- **Buttons reads finger counts from gesture events** in its event tap (as
+  `NSEvent` touches); nothing about them is changed or stored.
 
 ## Licence
 

@@ -25,15 +25,19 @@ final class DragSnapController {
         var isWindowDrag = false
         var lastCheck = Date.distantPast
         var targetRect: CGRect?
+        let startedAt = Date()
+        /// Whether we already fell back to the focused window once.
+        var triedFocused = false
     }
 
     /// How far the window must actually move before we believe it is being
-    /// dragged. Below this, a click that jitters would arm the preview.
-    private let movementThreshold: CGFloat = 8
+    /// dragged. Below this, a click that jitters would arm the preview. Small,
+    /// so the preview and layout bar appear the moment a window moves.
+    private let movementThreshold: CGFloat = 4
     /// Accessibility reads are IPC, and drag events fire ~120×/second. Only poll
     /// while still deciding whether this is a window drag; once confirmed the
     /// rest is pure cursor arithmetic and costs nothing.
-    private let confirmInterval: TimeInterval = 0.05
+    private let confirmInterval: TimeInterval = 0.03
 
     /// Set by the add-on while Snap is running. Flipping the preference in
     /// Settings must not start a drag monitor while Snap itself is switched off.
@@ -133,14 +137,26 @@ final class DragSnapController {
         guard let live = WindowController.frame(of: current.window) else { return false }
         let moved = hypot(live.minX - current.startFrameAX.minX,
                           live.minY - current.startFrameAX.minY)
-        guard moved >= movementThreshold else { return false }
+        guard moved >= movementThreshold else {
+            // Still not moving after a moment: we may have picked the wrong
+            // window. Try the focused one, once.
+            if !current.triedFocused, now.timeIntervalSince(current.startedAt) > 0.25,
+               let focused = WindowController.focusedWindow(),
+               let frame = WindowController.frame(of: focused) {
+                current = DragState(window: focused, startFrameAX: frame, triedFocused: true)
+            }
+            return false
+        }
 
         current.isWindowDrag = true
         return true
     }
 
     private func beginDrag() {
-        guard let window = WindowController.focusedWindow(),
+        // The window under the pointer is the one being dragged.
+        let mouse = NSEvent.mouseLocation
+        let pointAX = CGPoint(x: mouse.x, y: ScreenBridge.primaryMaxY - mouse.y)
+        guard let window = WindowController.window(at: pointAX) ?? WindowController.focusedWindow(),
               !WindowController.isFullScreen(window),
               let frame = WindowController.frame(of: window)
         else { return }

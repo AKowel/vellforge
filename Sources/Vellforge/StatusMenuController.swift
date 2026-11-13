@@ -6,11 +6,22 @@ import VellforgeKit
 @MainActor
 final class StatusMenuController: NSObject, NSMenuDelegate {
 
-    private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+    private let statusItem: NSStatusItem
     private unowned let app: AppDelegate
 
     init(app: AppDelegate) {
         self.app = app
+        // macOS puts a new menu bar item at the far left, which on a full
+        // menu bar is behind the camera notch: the app runs and nobody can
+        // find it. So the first time, ask for the far right instead (lower
+        // numbers sit further right), next to Control Center and right of
+        // Bar's divider (1 and 2). A position the user ⌘-drags to later
+        // replaces this.
+        let positionKey = "NSStatusItem Preferred Position vellforge.main"
+        if UserDefaults.standard.object(forKey: positionKey) == nil {
+            UserDefaults.standard.set(0.0, forKey: positionKey)
+        }
+        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         super.init()
 
         statusItem.autosaveName = "vellforge.main"
@@ -45,6 +56,22 @@ final class StatusMenuController: NSObject, NSMenuDelegate {
         }
         image.isTemplate = true
         return image
+    }
+
+    /// Where the icon ended up, for diagnostics: on a full, notched menu bar
+    /// macOS may have hidden it.
+    var iconPlacement: String {
+        guard let frame = statusItem.button?.window?.frame else { return "not placed" }
+        let screen = NSScreen.screens.first { $0.frame.intersects(frame) }
+        var text = "x \(Int(frame.minX))–\(Int(frame.maxX))"
+        if let screen {
+            text += " on \(screen.localizedName), \(Int(screen.frame.maxX - frame.maxX)) pt from its right edge"
+            if let left = screen.auxiliaryTopLeftArea, let right = screen.auxiliaryTopRightArea,
+               frame.maxX > left.maxX, frame.minX < right.minX {
+                text += " (BEHIND THE NOTCH)"
+            }
+        }
+        return text
     }
 
     /// The menu as indented text, for `-vellforge.dumpMenu YES`: lets a test

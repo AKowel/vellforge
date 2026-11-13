@@ -31,13 +31,15 @@ struct LayoutTests {
         }
     }
 
-    @Test("every preset has a unique id and at least two cells")
+    @Test("every preset has a unique id; only Full Screen is a single cell")
     func presetsAreWellFormed() {
         let ids = Layout.presets.map(\.id)
         #expect(Set(ids).count == ids.count, "duplicate layout ids")
-        for layout in Layout.presets {
+        for layout in Layout.presets where layout.id != Layout.fullScreen.id {
             #expect(layout.cells.count >= 2, "\(layout.name) needs at least two cells")
         }
+        #expect(Layout.fullScreen.cells == [.full])
+        #expect(Layout.presets.first?.id == Layout.fullScreen.id, "full screen comes first")
     }
 }
 
@@ -72,7 +74,7 @@ struct LayoutBarTests {
 
     @Test("a tile's cells stay inside it")
     func cellsFitTile() {
-        let tiles = bar.tiles(layoutCount: 6, in: display)
+        let tiles = bar.tiles(layoutCount: Layout.presets.count, in: display)
         for (index, layout) in Layout.presets.enumerated() {
             for cell in bar.cells(of: layout, in: tiles[index]) {
                 #expect(tiles[index].insetBy(dx: -0.5, dy: -0.5).contains(cell),
@@ -86,35 +88,46 @@ struct LayoutBarTests {
         let layouts = Layout.presets
         let tiles = bar.tiles(layoutCount: layouts.count, in: display)
 
-        // Left cell of the halves tile (index 0).
-        let halvesLeft = bar.cells(of: layouts[0], in: tiles[0])[0]
+        let halves = layouts.firstIndex { $0.id == Layout.halves.id }!
+        let thirds = layouts.firstIndex { $0.id == Layout.thirds.id }!
+        let full = layouts.firstIndex { $0.id == Layout.fullScreen.id }!
+
+        // Left cell of the halves tile.
+        let halvesLeft = bar.cells(of: layouts[halves], in: tiles[halves])[0]
         #expect(bar.hitTest(CGPoint(x: halvesLeft.midX, y: halvesLeft.midY),
                             layouts: layouts, in: display)
-                == LayoutHit(layoutIndex: 0, cellIndex: 0))
+                == LayoutHit(layoutIndex: halves, cellIndex: 0))
 
         // Right cell of the same tile.
-        let halvesRight = bar.cells(of: layouts[0], in: tiles[0])[1]
+        let halvesRight = bar.cells(of: layouts[halves], in: tiles[halves])[1]
         #expect(bar.hitTest(CGPoint(x: halvesRight.midX, y: halvesRight.midY),
                             layouts: layouts, in: display)
-                == LayoutHit(layoutIndex: 0, cellIndex: 1))
+                == LayoutHit(layoutIndex: halves, cellIndex: 1))
 
-        // Middle cell of the thirds tile (index 1).
-        let thirdsMiddle = bar.cells(of: layouts[1], in: tiles[1])[1]
+        // Middle cell of the thirds tile.
+        let thirdsMiddle = bar.cells(of: layouts[thirds], in: tiles[thirds])[1]
         #expect(bar.hitTest(CGPoint(x: thirdsMiddle.midX, y: thirdsMiddle.midY),
                             layouts: layouts, in: display)
-                == LayoutHit(layoutIndex: 1, cellIndex: 1))
+                == LayoutHit(layoutIndex: thirds, cellIndex: 1))
+
+        // Anywhere on the full-screen tile is its one cell.
+        let fullTile = tiles[full]
+        #expect(bar.hitTest(CGPoint(x: fullTile.minX + 6, y: fullTile.maxY - 6),
+                            layouts: layouts, in: display)
+                == LayoutHit(layoutIndex: full, cellIndex: 0))
     }
 
     @Test("the gap between cells still resolves to the nearest cell")
     func gapsAreNotDead() {
         let layouts = Layout.presets
         let tiles = bar.tiles(layoutCount: layouts.count, in: display)
-        let cells = bar.cells(of: layouts[0], in: tiles[0])
+        let halves = layouts.firstIndex { $0.id == Layout.halves.id }!
+        let cells = bar.cells(of: layouts[halves], in: tiles[halves])
         // Exactly between the two halves.
-        let between = CGPoint(x: (cells[0].maxX + cells[1].minX) / 2, y: tiles[0].midY)
+        let between = CGPoint(x: (cells[0].maxX + cells[1].minX) / 2, y: tiles[halves].midY)
         let hit = bar.hitTest(between, layouts: layouts, in: display)
         #expect(hit != nil, "a point in the cell gap must still hit something")
-        #expect(hit?.layoutIndex == 0)
+        #expect(hit?.layoutIndex == halves)
     }
 
     @Test("points outside the bar hit nothing")
@@ -130,6 +143,17 @@ struct LayoutBarTests {
         #expect(bar.shouldReveal(at: CGPoint(x: 960, y: 1070), in: display))
         #expect(bar.shouldReveal(at: CGPoint(x: 960, y: 940), in: display))
         #expect(!bar.shouldReveal(at: CGPoint(x: 960, y: 500), in: display))
+    }
+
+    @Test("on a tall display the reveal band is a fifth of the height, not a sliver")
+    func revealBandScales() {
+        // 1080 tall: the band is 216 pt, so 200 pt down already reveals.
+        #expect(bar.revealBand(in: display) == max(bar.revealDepth, display.frame.height * 0.2))
+        #expect(bar.shouldReveal(at: CGPoint(x: 960, y: display.frame.maxY - 200), in: display))
+        // A short display still gets at least the fixed depth.
+        let short = Display(id: "short", frame: CGRect(x: 0, y: 0, width: 1280, height: 600),
+                            visibleFrame: CGRect(x: 0, y: 0, width: 1280, height: 575))
+        #expect(bar.revealBand(in: short) == bar.revealDepth)
     }
 
     @Test("the bar centres on a secondary display, not the primary")

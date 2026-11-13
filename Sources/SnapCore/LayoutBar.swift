@@ -24,8 +24,12 @@ public struct LayoutBar: Sendable {
     public var cellGap: CGFloat
     /// Distance below the top of the usable area where the bar sits.
     public var topMargin: CGFloat
-    /// How far from the top of the display a drag must reach to reveal the bar.
+    /// The least distance from the top of the display at which a drag
+    /// reveals the bar. On a tall display the band is deeper (a fifth of the
+    /// height), so the bar is there as soon as a window heads for the top,
+    /// rather than only once the pointer is nearly at the menu bar.
     public var revealDepth: CGFloat
+    public var revealFraction: CGFloat = 0.2
 
     public init(tileSize: CGSize = CGSize(width: 116, height: 74),
                 tileGap: CGFloat = 10,
@@ -41,8 +45,12 @@ public struct LayoutBar: Sendable {
         self.revealDepth = revealDepth
     }
 
+    public func revealBand(in display: Display) -> CGFloat {
+        max(revealDepth, display.frame.height * revealFraction)
+    }
+
     public func shouldReveal(at point: CGPoint, in display: Display) -> Bool {
-        point.y >= display.frame.maxY - revealDepth
+        point.y >= display.frame.maxY - revealBand(in: display)
             && point.x >= display.frame.minX
             && point.x <= display.frame.maxX
     }

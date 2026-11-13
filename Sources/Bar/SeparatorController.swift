@@ -27,8 +27,13 @@ final class SeparatorController {
         didSet {
             UserDefaults.standard.set(isCollapsed, forKey: "vellbar.collapsed")
             apply()
+            onCollapseChange?(isCollapsed)
         }
     }
+
+    /// Told after every collapse or expand, so the add-on can react (warn
+    /// when nothing was hidden, refresh icons when the bar opens).
+    var onCollapseChange: ((Bool) -> Void)?
 
     init() {
         isCollapsed = UserDefaults.standard.bool(forKey: "vellbar.collapsed")
@@ -47,7 +52,6 @@ final class SeparatorController {
             button.image = NSImage(systemSymbolName: "line.3.horizontal.decrease",
                                    accessibilityDescription: "Vellforge Bar divider")
             button.image?.isTemplate = true
-            button.appearsDisabled = true
         }
         apply()
     }

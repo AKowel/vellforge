@@ -76,6 +76,11 @@ final class ScrollTap {
     }
 
     var recentEvents: [String] { TapRuntime.counts.withLock { $0.recent } }
+
+    /// Which device the most recent scroll came from, as Scroll judged it.
+    var lastSource: ScrollSource? {
+        TapRuntime.counts.withLock { $0.lastWasTrackpad }.map { $0 ? .trackpad : .mouse }
+    }
     var transitions: [String] { TapRuntime.counts.withLock { $0.transitions } }
 
     var perDevice: (trackpad: Int, mouse: Int) {
@@ -111,6 +116,8 @@ private enum TapRuntime {
         var seen = 0
         var flipped = 0
         var lastWasContinuous = false
+        /// Nil until the first event, so "last scroll came from" can say so.
+        var lastWasTrackpad: Bool?
         var lastLineIn = 0
         var lastPointIn = 0
         var lastLineOut = 0
@@ -174,40 +181,48 @@ private enum TapRuntime {
 
     static func transform(_ event: CGEvent) {
         let isContinuous = event.getIntegerValueField(.scrollWheelEventIsContinuous) != 0
-        let current = settings.withLock { $0 }
-        let decision = ScrollPolicy.decide(isContinuous: isContinuous, settings: current)
-
+        // The phases decide trackpad versus mouse: a smooth mouse wheel is
+        // continuous too, but only a gesture surface reports a phase.
         let phase = event.getIntegerValueField(.scrollWheelEventScrollPhase)
         let momentum = event.getIntegerValueField(.scrollWheelEventMomentumPhase)
+        let source = ScrollSource.classify(isContinuous: isContinuous,
+                                           scrollPhase: phase, momentumPhase: momentum)
+        let isTrackpad = source == .trackpad
+        let current = settings.withLock { $0 }
+        let decision = ScrollPolicy.decide(isContinuous: isContinuous,
+                                           scrollPhase: phase, momentumPhase: momentum,
+                                           settings: current)
+
         counts.withLock {
             $0.seen += 1
             $0.lastWasContinuous = isContinuous
+            $0.lastWasTrackpad = isTrackpad
             $0.lastScrollPhase = Int(phase)
             $0.lastMomentumPhase = Int(momentum)
             if !decision.isIdentity { $0.flipped += 1 }
 
-            if isContinuous { $0.trackpadEvents += 1 } else { $0.mouseEvents += 1 }
+            if isTrackpad { $0.trackpadEvents += 1 } else { $0.mouseEvents += 1 }
 
             // Verbose history is opt-in. Building strings and reading the clock
             // on every scroll event is fine while debugging and pure waste in a
             // shipped build — this is the hottest path in the app.
             //   defaults write com.vellund.Vellforge vellscroll.verbose -bool true
             if TapRuntime.verbose {
-                let kind = isContinuous ? "trackpad" : "mouse   "
+                let kind = isTrackpad ? "trackpad" : (isContinuous ? "smooth wheel" : "mouse   ")
                 let flip = decision.isIdentity ? "pass" : "FLIP"
                 $0.recent.append("\(kind) phase=\(phase) momentum=\(momentum) \(flip)")
                 if $0.recent.count > 12 { $0.recent.removeFirst() }
 
                 let now = Date()
                 let gapMs = $0.lastEventAt.map { Int(now.timeIntervalSince($0) * 1000) } ?? -1
-                if let previous = $0.lastKindContinuous, previous != isContinuous {
+                if let previous = $0.lastKindContinuous, previous != isTrackpad {
                     let from = previous ? "trackpad" : "mouse"
-                    let to = isContinuous ? "trackpad" : "mouse"
+                    let to = isTrackpad ? "trackpad" : "mouse"
                     $0.transitions.append("\(from) -> \(to)   gap \(gapMs)ms")
                     if $0.transitions.count > 10 { $0.transitions.removeFirst() }
                 }
                 $0.lastEventAt = now
-                $0.lastKindContinuous = isContinuous
+                $0.lastKindContinuous = isTrackpad
             }
         }
 

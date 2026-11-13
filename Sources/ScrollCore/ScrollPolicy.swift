@@ -2,14 +2,19 @@ import Foundation
 
 /// Where a scroll event came from.
 ///
-/// macOS does not label events "trackpad" or "mouse". What it exposes is
-/// whether the scroll is *continuous* — a smooth stream of small deltas from a
-/// gesture surface — or *discrete*, the notched clicks of a traditional wheel.
-/// That distinction is the whole basis for treating the two differently.
+/// macOS does not label events "trackpad" or "mouse". Two things it does say:
+/// whether the scroll is *continuous* (smooth, small deltas) or *discrete*
+/// (the notches of a wheel), and, for a gesture surface, the *phase* of the
+/// gesture: began, changed, ended, then momentum after the fingers lift.
+///
+/// Continuity alone is not enough. A mouse with a smooth or free-spinning
+/// wheel, such as Logitech's MX range, sends continuous deltas too, and was
+/// taken for a trackpad. What it never sends is a gesture phase, so that is
+/// the test.
 public enum ScrollSource: String, Sendable, Equatable, CaseIterable {
-    /// Continuous: trackpads, and Magic Mouse, which scrolls by gesture.
+    /// A gesture surface: trackpads, and Magic Mouse, which scrolls by gesture.
     case trackpad
-    /// Discrete: ordinary wheel mice.
+    /// A wheel, notched or smooth.
     case mouse
 
     public var title: String {
@@ -19,8 +24,16 @@ public enum ScrollSource: String, Sendable, Equatable, CaseIterable {
         }
     }
 
-    public static func classify(isContinuous: Bool) -> ScrollSource {
-        isContinuous ? .trackpad : .mouse
+    /// - Parameters:
+    ///   - scrollPhase: the event's `scrollWheelEventScrollPhase`; 0 when the
+    ///     device has no notion of a gesture.
+    ///   - momentumPhase: `scrollWheelEventMomentumPhase`; non-zero while a
+    ///     trackpad flick coasts on after the fingers have lifted.
+    public static func classify(isContinuous: Bool,
+                                scrollPhase: Int64 = 0,
+                                momentumPhase: Int64 = 0) -> ScrollSource {
+        guard isContinuous else { return .mouse }
+        return (scrollPhase != 0 || momentumPhase != 0) ? .trackpad : .mouse
     }
 }
 
@@ -75,8 +88,13 @@ public enum ScrollPolicy {
         public var isIdentity: Bool { !invertVertical && !invertHorizontal }
     }
 
-    public static func decide(isContinuous: Bool, settings: ScrollSettings) -> Decision {
-        let source = ScrollSource.classify(isContinuous: isContinuous)
+    public static func decide(isContinuous: Bool,
+                              scrollPhase: Int64 = 0,
+                              momentumPhase: Int64 = 0,
+                              settings: ScrollSettings) -> Decision {
+        let source = ScrollSource.classify(isContinuous: isContinuous,
+                                           scrollPhase: scrollPhase,
+                                           momentumPhase: momentumPhase)
         return Decision(
             invertVertical: shouldInvertVertical(source: source, settings: settings),
             invertHorizontal: shouldInvertHorizontal(source: source, settings: settings))

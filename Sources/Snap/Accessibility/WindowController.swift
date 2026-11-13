@@ -30,6 +30,39 @@ enum WindowController {
         return window
     }
 
+    /// The window under a point, in Accessibility (top-left) coordinates.
+    ///
+    /// Used when a drag starts: the window being dragged is the one under the
+    /// pointer, and the "focused window" can still be the previous one for a
+    /// moment after a click on a background window's title bar.
+    static func window(at point: CGPoint) -> AXUIElement? {
+        let systemWide = AXUIElementCreateSystemWide()
+        AXUIElementSetMessagingTimeout(systemWide, messagingTimeout)
+        var hit: AXUIElement?
+        guard AXUIElementCopyElementAtPosition(systemWide, Float(point.x), Float(point.y), &hit) == .success,
+              var element = hit else { return nil }
+
+        // Climb to the window. A title bar is a few levels deep at most; the
+        // cap stops a malformed tree from looping.
+        for _ in 0..<12 {
+            AXUIElementSetMessagingTimeout(element, messagingTimeout)
+            if string(element, kAXRoleAttribute) == kAXWindowRole { return element }
+            if let window = elementValue(element, kAXWindowAttribute) { return window }
+            guard let parent = elementValue(element, kAXParentAttribute) else { return nil }
+            element = parent
+        }
+        return nil
+    }
+
+    private static func elementValue(_ element: AXUIElement, _ attribute: String) -> AXUIElement? {
+        var value: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(element, attribute as CFString, &value) == .success,
+              let value, CFGetTypeID(value) == AXUIElementGetTypeID() else { return nil }
+        let window = value as! AXUIElement
+        AXUIElementSetMessagingTimeout(window, messagingTimeout)
+        return window
+    }
+
     static func frame(of window: AXUIElement) -> CGRect? {
         guard let origin = point(window, kAXPositionAttribute),
               let size = size(window, kAXSizeAttribute) else { return nil }
