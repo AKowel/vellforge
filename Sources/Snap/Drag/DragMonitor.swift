@@ -9,6 +9,7 @@ import AppKit
 @MainActor
 final class DragMonitor {
 
+    var onPress: (() -> Void)?
     var onDrag: ((CGPoint) -> Void)?
     var onDrop: ((CGPoint) -> Void)?
 
@@ -18,7 +19,7 @@ final class DragMonitor {
 
     func start() {
         guard monitors.isEmpty else { return }
-        let mask: NSEvent.EventTypeMask = [.leftMouseDragged, .leftMouseUp]
+        let mask: NSEvent.EventTypeMask = [.leftMouseDown, .leftMouseDragged, .leftMouseUp]
 
         if let global = NSEvent.addGlobalMonitorForEvents(matching: mask, handler: { event in
             MainActor.assumeIsolated { Self.dispatch(event, to: self) }
@@ -46,6 +47,7 @@ final class DragMonitor {
         // same space our `Display` frames use.
         let point = NSEvent.mouseLocation
         switch event.type {
+        case .leftMouseDown:    monitor.onPress?()
         case .leftMouseDragged: monitor.onDrag?(point)
         case .leftMouseUp:      monitor.onDrop?(point)
         default:                break

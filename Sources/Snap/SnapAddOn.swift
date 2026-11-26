@@ -37,6 +37,14 @@ public final class SnapAddOn: AddOn {
         BindingStore.shared.reregister()
         DragSnapController.shared.isActive = true
         DragSnapController.shared.start()
+
+        // After launch settles, so the question isn't the first thing on
+        // screen before the menu bar icon has even appeared.
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(1.5))
+            guard self.isRunning else { return }
+            SystemTiling.askOnceIfConflicting()
+        }
     }
 
     public func stop() {
@@ -68,6 +76,7 @@ public final class SnapAddOn: AddOn {
               running:              \(isRunning)
               drag to snap:         \(DragSnapController.isEnabled)
               layout chooser:       \(DragSnapController.layoutBarEnabled)
+              macOS edge tiling:    \(SystemTiling.exists ? (SystemTiling.isOn ? "on (conflicts with drag to snap)" : "off") : "not on this macOS")
               gap:                  \(Int(SnapEngine.gap)) pt
               shortcuts registered: \(isRunning ? BindingStore.shared.bindings.count - conflicted.count : 0)
               shortcuts taken by another app: \(conflicted.isEmpty ? "none" : conflicted.joined(separator: ", "))

@@ -57,7 +57,15 @@ final class DragSnapController {
         set { UserDefaults.standard.set(newValue, forKey: "vellsnap.layoutBar") }
     }
 
+    /// Backstop for a mouse-up we never heard about. macOS does not promise a
+    /// global monitor every event (its own edge tiling, a full-screen
+    /// transition or a busy main thread can each eat one), and without the
+    /// mouse-up the preview would stay on screen until the next drag.
+    private var watchdog: Timer?
+    private var releasedTicks = 0
+
     private init() {
+        monitor.onPress = { [weak self] in self?.handlePress() }
         monitor.onDrag = { [weak self] point in self?.handleDrag(at: point) }
         monitor.onDrop = { [weak self] point in self?.handleDrop(at: point) }
     }
@@ -74,9 +82,17 @@ final class DragSnapController {
 
     // MARK: Drag
 
+    /// A new press means any drag we still think is running ended without us
+    /// seeing its mouse-up. Drop that stale state, or the next drag would
+    /// inherit the previous window and its target.
+    private func handlePress() {
+        if state != nil { reset() }
+    }
+
     private func handleDrag(at point: CGPoint) {
         if state == nil { beginDrag() }
         guard var current = state else { return }
+        releasedTicks = 0
 
         if !current.isWindowDrag {
             guard confirmWindowDrag(&current) else {
@@ -86,7 +102,8 @@ final class DragSnapController {
         }
 
         // From here it is pure geometry — no more Accessibility traffic.
-        guard let display = ScreenBridge.displays().containing(point) else {
+        let displays = ScreenBridge.displays()
+        guard let display = displays.containing(point) else {
             state = current
             return
         }
@@ -115,8 +132,10 @@ final class DragSnapController {
         }
 
         // Fall back to edge targets — including the very top edge, which sits
-        // above the bar and still maximises.
-        if let target = map.target(at: point, in: display) {
+        // above the bar and still maximises. Edges shared with another display
+        // are skipped: the pointer only passes through those on its way to
+        // the next screen.
+        if let target = map.target(at: point, in: display, others: displays) {
             let zone = target.zone(cycle: Self.cycleStep(for: NSEvent.modifierFlags))
             let rect = zone.resolve(in: display.visibleFrame, gap: Double(SnapEngine.gap))
             current.targetRect = rect
@@ -161,6 +180,33 @@ final class DragSnapController {
               let frame = WindowController.frame(of: window)
         else { return }
         state = DragState(window: window, startFrameAX: frame)
+        startWatchdog()
+    }
+
+    private func startWatchdog() {
+        watchdog?.invalidate()
+        releasedTicks = 0
+        watchdog = Timer.scheduledTimer(withTimeInterval: 0.2, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.checkButtonStillHeld() }
+        }
+    }
+
+    /// Two ticks in a row with the button up, so a mouse-up that is merely
+    /// queued behind us still gets to snap the window first.
+    private func checkButtonStillHeld() {
+        guard state != nil else { return stopWatchdog() }
+        guard NSEvent.pressedMouseButtons & 1 == 0 else {
+            releasedTicks = 0
+            return
+        }
+        releasedTicks += 1
+        if releasedTicks >= 2 { reset() }
+    }
+
+    private func stopWatchdog() {
+        watchdog?.invalidate()
+        watchdog = nil
+        releasedTicks = 0
     }
 
     /// Holding a modifier steps through what an edge offers, so one drop region
@@ -186,6 +232,7 @@ final class DragSnapController {
 
     private func reset() {
         state = nil
+        stopWatchdog()
         preview.hide()
         layoutBar.hide()
     }

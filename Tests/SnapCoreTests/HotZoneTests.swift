@@ -51,6 +51,50 @@ struct HotZoneTests {
         #expect(map.target(at: CGPoint(x: 1925, y: 540), in: secondary) != .right)
     }
 
+    @Test("a seam between side-by-side displays arms nothing")
+    func seamsAreNotEdges() {
+        // The arrangement that showed the bug: a 24" to the left, a MacBook
+        // in the middle, a full-HD display to the right, tops not aligned.
+        let left = Display(id: "left",
+                           frame: CGRect(x: -1920, y: 0, width: 1920, height: 1080),
+                           visibleFrame: CGRect(x: -1920, y: 0, width: 1920, height: 1080))
+        let laptop = Display(id: "laptop",
+                             frame: CGRect(x: 0, y: 0, width: 1512, height: 982),
+                             visibleFrame: CGRect(x: 0, y: 74, width: 1512, height: 875))
+        let right = Display(id: "right",
+                            frame: CGRect(x: 1512, y: 0, width: 1920, height: 1080),
+                            visibleFrame: CGRect(x: 1512, y: 0, width: 1920, height: 1080))
+        let all = [left, laptop, right]
+
+        // Crossing from the laptop into the right-hand display.
+        #expect(map.target(at: CGPoint(x: 1506, y: 500), in: laptop, others: all) == nil)
+        #expect(map.target(at: CGPoint(x: 1516, y: 500), in: right, others: all) == nil)
+        // And from the laptop into the left-hand one.
+        #expect(map.target(at: CGPoint(x: 4, y: 500), in: laptop, others: all) == nil)
+        #expect(map.target(at: CGPoint(x: -4, y: 500), in: left, others: all) == nil)
+
+        // The outer edges still snap.
+        #expect(map.target(at: CGPoint(x: -1918, y: 500), in: left, others: all) == .left)
+        #expect(map.target(at: CGPoint(x: 3430, y: 500), in: right, others: all) == .right)
+        // Above the laptop's top the right display's left edge is a real
+        // edge again: nothing carries on past it there.
+        #expect(map.target(at: CGPoint(x: 1514, y: 1000), in: right, others: all) == .topLeft)
+        // Low down on the seam nothing arms; only the real bottom edge does.
+        #expect(map.target(at: CGPoint(x: 1516, y: 40), in: right, others: all) == nil)
+        #expect(map.target(at: CGPoint(x: 1530, y: 2), in: right, others: all) == .bottomLeft)
+    }
+
+    @Test("a display stacked on top turns the shared edge into a seam")
+    func stackedSeam() {
+        let below = display
+        let above = Display(id: "above",
+                            frame: CGRect(x: 0, y: 1080, width: 1920, height: 1080),
+                            visibleFrame: CGRect(x: 0, y: 1080, width: 1920, height: 1055))
+        #expect(map.target(at: CGPoint(x: 960, y: 1078), in: below, others: [below, above]) == nil)
+        #expect(map.target(at: CGPoint(x: 960, y: 1082), in: above, others: [below, above]) == nil)
+        #expect(map.target(at: CGPoint(x: 960, y: 2158), in: above, others: [below, above]) == .top)
+    }
+
     @Test("the top edge maximises, and cycles to a top half")
     func topCycles() {
         #expect(EdgeTarget.top.zone(cycle: 0) == .full)

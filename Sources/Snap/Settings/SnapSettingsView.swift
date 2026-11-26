@@ -10,6 +10,7 @@ struct SnapSettingsView: View {
     @AppStorage("vellsnap.gap") private var gap = 0.0
 
     @State private var message = ""
+    @State private var systemTilingOn = SystemTiling.isOn
     /// Bumped to rebuild the recorders after a reset.
     @State private var generation = 0
 
@@ -20,6 +21,19 @@ struct SnapSettingsView: View {
                 Text("Hold ⌃ while dropping for a third, ⌃⇧ for two-thirds.")
             }
             .onChange(of: dragSnap) { _, on in DragSnapController.isEnabled = on }
+
+            if dragSnap && systemTilingOn {
+                HStack(alignment: .firstTextBaseline) {
+                    Text("macOS's own edge tiling is on too, so both move the window when you drop it at an edge.")
+                        .font(.callout)
+                        .foregroundStyle(.orange)
+                    Spacer()
+                    Button("Turn Off macOS Tiling") {
+                        if !SystemTiling.turnOff() { SystemTiling.openSystemSettings() }
+                        systemTilingOn = SystemTiling.isOn
+                    }
+                }
+            }
 
             Toggle(isOn: $layoutBar) {
                 Text("Show the layout chooser at the top of the screen")
